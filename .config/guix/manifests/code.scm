@@ -2,13 +2,14 @@
 ;; platform-specific manifests at some point.
 
 (specifications->manifest
- '("node"
-
-   ;; C/C++
+ '(;; C/C++
    "gcc-toolchain"
    "make"
    "pkg-config"
    "texinfo"
+   "llvm"
+   "lld"
+   "clang"
 
    ;; Python
    "python2"
@@ -20,6 +21,8 @@
    "icedtea"
 
    ;; SDL
+   "glu"
+   "glfw"
    "sdl2"
    "sdl2-image"
    "sdl2-mixer"

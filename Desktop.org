@@ -14,13 +14,14 @@ This file contains configuration for my overall desktop environment.  My workflo
   - [[#helper-functions][Helper Functions]]
   - [[#configuration][Configuration]]
   - [[#desktop-configuration][Desktop Configuration]]
-  - [[#window-switcher][Window Switcher]]
   - [[#panel][Panel]]
   - [[#keybindings][Keybindings]]
+  - [[#provide-the-dw-desktop-package][Provide the dw-desktop package]]
   - [[#useful-links][Useful Links]]
 - [[#panel-via-polybar][Panel via Polybar]]
 - [[#desktop-notifications-via-dunst][Desktop Notifications via Dunst]]
 - [[#display-management][Display Management]]
+- [[#default-applications][Default Applications]]
 - [[#user-services][User Services]]
 - [[#scheduled-tasks][Scheduled Tasks]]
 - [[#applications][Applications]]
@@ -59,7 +60,7 @@ Load system-specific settings from =.emacs.d/per-system-settings.el= and unpack 
 
 #+NAME: get-setting
 #+begin_src emacs-lisp :var name="nil" :session system-settings
-(alist-get (intern name) dw/system-settings)
+(dw/system-settings-get (intern name))
 #+end_src
 
 * Fonts and Themes
@@ -143,7 +144,7 @@ I also have to do an extra step to make sure Emacs can find the font path from t
 
 I use Emacs as the desktop window manager thanks to the excellent EXWM.  This configuration gets loaded relatively early in Emacs startup if running on a Linux machine.
 
-#+begin_src emacs-lisp :tangle .emacs.d/exwm.el
+#+begin_src emacs-lisp :tangle .emacs.d/lisp/dw-desktop.el
 
 (use-package exwm
   :init
@@ -178,7 +179,7 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
 
 ** Helper Functions
 
-#+begin_src emacs-lisp :tangle .emacs.d/exwm.el
+#+begin_src emacs-lisp :tangle .emacs.d/lisp/dw-desktop.el
 
   (defun exwm/run-in-background (command)
     (let ((command-parts (split-string command "[ ]+")))
@@ -208,7 +209,7 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
 
 ** Configuration
 
-#+begin_src emacs-lisp :tangle .emacs.d/exwm.el
+#+begin_src emacs-lisp :tangle .emacs.d/lisp/dw-desktop.el
 
   (defun dw/exwm-init-hook ()
     ;; Launch Telega in workspace 0 if we've logged in before
@@ -230,13 +231,10 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
   (use-package exwm
     :if dw/exwm-enabled
     :config
-    ;(display-time-mode 1) ;; Not needed for now since we have a panel
 
     (add-hook 'exwm-mode-hook
               (lambda ()
                 (evil-local-set-key 'motion (kbd "C-u") nil)))
-
-    (require 'dw-exwm)
 
     (defun dw/setup-window-by-class ()
       (interactive)
@@ -250,7 +248,8 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
         ("qutebrowser" (exwm-workspace-move-window 2))
         ("qjackctl" (exwm-floating-toggle-floating))
         ("mpv" (exwm-floating-toggle-floating)
-               (dw/exwm-floating-toggle-pinned))))
+               (dw/exwm-floating-toggle-pinned))
+        ("gsi" (exwm-input-toggle-keyboard))))
 
     ;; Do some post-init setup
     (add-hook 'exwm-init-hook #'dw/exwm-init-hook)
@@ -281,7 +280,7 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
 
 ** Desktop Configuration
 
-#+begin_src emacs-lisp :tangle .emacs.d/exwm.el
+#+begin_src emacs-lisp :tangle .emacs.d/lisp/dw-desktop.el
 
 (defun dw/run-xmodmap ()
   (interactive)
@@ -328,33 +327,9 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
 
 #+end_src
 
-** Window Switcher
-
-#+begin_src emacs-lisp :tangle .emacs.d/exwm.el
-
-  (defalias 'switch-to-buffer-original 'exwm-workspace-switch-to-buffer)
-  ;; (defalias 'switch-to-buffer 'exwm-workspace-switch-to-buffer)
-
-  ;; (defun dw/counsel-switch-buffer ()
-  ;;   "Switch to another buffer.
-  ;; Display a preview of the selected ivy completion candidate buffer
-  ;; in the current window."
-  ;;   (interactive)
-  ;;   (ivy-read "Switch to buffer: " 'internal-complete-buffer
-  ;;             :preselect (buffer-name (other-buffer (current-buffer)))
-  ;;             :keymap ivy-switch-buffer-map
-  ;;             :action #'ivy--switch-buffer-action
-  ;;             :matcher #'ivy--switch-buffer-matcher
-  ;;             :caller 'counsel-switch-buffer
-  ;;             :unwind #'counsel--switch-buffer-unwind
-  ;;             :update-fn 'counsel--switch-buffer-update-fn)
-  ;; )
-
-#+end_src
-
 ** Panel
 
-#+begin_src emacs-lisp :tangle .emacs.d/exwm.el
+#+begin_src emacs-lisp :tangle .emacs.d/lisp/dw-desktop.el
 
 (defun dw/send-polybar-hook (name number)
   (start-process-shell-command "polybar-msg" nil (format "polybar-msg hook %s %s" name number)))
@@ -411,7 +386,7 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
 
 ** Keybindings
 
-#+begin_src emacs-lisp :tangle .emacs.d/exwm.el
+#+begin_src emacs-lisp :tangle .emacs.d/lisp/dw-desktop.el
 
   (when dw/exwm-enabled
     ;; These keys should always pass through to Emacs
@@ -495,6 +470,14 @@ I use Emacs as the desktop window manager thanks to the excellent EXWM.  This co
     (exwm-input-set-key (kbd "<s-return>") 'vterm)
     (exwm-input-set-key (kbd "s-SPC") 'counsel-linux-app)
     (exwm-input-set-key (kbd "s-f") 'exwm-layout-toggle-fullscreen))
+
+#+end_src
+
+** Provide the dw-desktop package
+
+#+begin_src emacs-lisp :tangle .emacs.d/lisp/dw-desktop.el
+
+  (provide 'dw-desktop)
 
 #+end_src
 
@@ -955,6 +938,7 @@ fi
 #+begin_src scheme :noweb-ref packages :noweb-sep ""
 
 "dunst"
+"libnotify"  ; For notify-send
 
 #+end_src
 
@@ -983,6 +967,21 @@ case $(hostname) in
         ;;
 
 esac
+
+#+end_src
+
+* Default Applications
+
+The file =.config/mimeapps.list= configures default applications for various content types.  Right now I'm using it to control which browser opens URLs from other applications.
+
+#+begin_src conf :tangle .config/mimeapps.list
+
+  [Default Applications]
+  text/html=qutebrowser.desktop
+  x-scheme-handler/http=qutebrowser.desktop
+  x-scheme-handler/https=qutebrowser.desktop
+  x-scheme-handler/about=qutebrowser.desktop
+  x-scheme-handler/unknown=qutebrowser.desktop
 
 #+end_src
 
@@ -1291,16 +1290,6 @@ shortcut-add man=https://fanglingsu.github.io/vimb/man.html
 #+end_src
 
 ** Mail
-
-*Guix Packages*
-
-#+begin_src scheme :noweb-ref packages :noweb-sep ""
-
-"mu"
-"offlineimap"
-
-#+end_src
-
 ** Password Management
 
 *Guix Packages*

@@ -20,6 +20,7 @@
 - [[#dotfiles-management][Dotfiles Management]]
   - [[#syncing][Syncing]]
   - [[#updating][Updating]]
+- [[#nix-package-manager][Nix Package Manager]]
 - [[#system-installation][System Installation]]
 :END:
 
@@ -31,12 +32,27 @@ Guix supports the concept of [[https://guix.gnu.org/manual/en/html_node/Channels
 
 #+begin_src scheme :tangle .config/guix/channels.scm
 
-;; NOTE: This file is generated from ~/.dotfiles/System.org.  Please see commentary there.
+  ;; NOTE: This file is generated from ~/.dotfiles/System.org.  Please see commentary there.
 
-(cons* (channel
-        (name 'nonguix)
-        (url "https://gitlab.com/nonguix/nonguix"))
-       %default-channels)
+  ;; (cons* (channel
+  ;;         (name 'nonguix)
+  ;;         (commit "c34fa8bfacdce5fa45b2a684c2b27309c09a9056")
+  ;;         (url "https://gitlab.com/nonguix/nonguix"))
+  ;;        %default-channels)
+
+  (list (channel
+          (name 'nonguix)
+          (commit "c34fa8bfacdce5fa45b2a684c2b27309c09a9056")
+          (url "https://gitlab.com/nonguix/nonguix"))
+        (channel
+          (name 'guix)
+          (commit "190187326ad7516dd6728eed7bb6ef2d4f92897a")
+          (url "https://git.savannah.gnu.org/git/guix.git")
+          (introduction
+            (make-channel-introduction
+              "9edb3f66fd807b096b48283debdcddccfea34bad"
+            (openpgp-fingerprint
+              "BBB0 2DDF 2CEA F6A8 0D1D  E643 A2A0 6DF2 A33A 54FA")))))
 
 #+end_src
 
@@ -107,6 +123,7 @@ sudo -E guix system -L ~/.dotfiles/.config/guix/systems reconfigure ~/.dotfiles/
   #:use-module (nongnu packages linux)
   #:use-module (nongnu system linux-initrd))
 
+(use-service-modules nix)
 (use-service-modules desktop xorg)
 (use-package-modules certs)
 (use-package-modules shells)
@@ -280,6 +297,7 @@ Define the =base-operating-system= which will be inherited by all machine config
                                (web-interface? #t)
                                (extensions
                                  (list cups-filters))))
+                    (service nix-service-type)
                     (bluetooth-service #:auto-enable? #t)
                     (remove (lambda (service)
                                 (eq? (service-kind service) gdm-service-type))
@@ -298,6 +316,8 @@ Because I'm lame, all of my machines are named from characters, things, and plac
 
 Some settings need to be customized on a per-system basis without tweaking individual configuration files.  Thanks to org-mode's =noweb= functionality, I can define a set of variables that can be tweaked for each system and applied across these configuration files when they get generated.
 
+I also define a function called =dw/system-settings-get= which can retrieve these settings appropriately.
+
 #+begin_src emacs-lisp :tangle .emacs.d/per-system-settings.el :noweb yes
 
 (require 'map) ;; Needed for map-merge
@@ -307,6 +327,9 @@ Some settings need to be customized on a per-system basis without tweaking indiv
     'list
     '((desktop/dpi . 180)
       (desktop/background . "samuel-ferrara-uOi3lg8fGl4-unsplash.jpg")
+      (emacs/default-face-size . 220)
+      (emacs/variable-face-size . 245)
+      (emacs/fixed-face-size . 200)
       (polybar/height . 35)
       (polybar/font-0-size . 18)
       (polybar/font-1-size . 14)
@@ -686,15 +709,18 @@ Updating my dotfiles requires running a script in Emacs to loop over all of my l
 
 #+begin_src sh :tangle .bin/update-dotfiles :shebang #!/bin/sh
 
-# Navigate to the directory of this script (generally ~/.dotfiles/.bin)
-cd $(dirname $(readlink -f $0))
-cd ..
+  # Navigate to the directory of this script (generally ~/.dotfiles/.bin)
+  cd $(dirname $(readlink -f $0))
+  cd ..
 
-# The heavy lifting is done by an Emacs script
-emacs -Q --script ./.emacs.d/tangle-dotfiles.el
+  # The heavy lifting is done by an Emacs script
+  emacs -Q --script ./.emacs.d/tangle-dotfiles.el
 
-# Make sure any running Emacs instance gets updated settings
-emacsclient -e '(load-file "~/.emacs.d/per-system-settings.el")' -a "echo 'Emacs is not currently running'"
+  # Make sure any running Emacs instance gets updated settings
+  emacsclient -e '(load-file "~/.emacs.d/per-system-settings.el")' -a "echo 'Emacs is not currently running'"
+
+  # Update configuration symlinks
+  stow .
 
 #+end_src
 
@@ -702,17 +728,51 @@ emacsclient -e '(load-file "~/.emacs.d/per-system-settings.el")' -a "echo 'Emacs
 
 #+begin_src emacs-lisp :tangle .emacs.d/tangle-dotfiles.el
 
-(require 'org)
+  (require 'org)
+  (load-file "~/.dotfiles/.emacs.d/lisp/dw-settings.el")
 
-;; Don't ask when evaluating code blocks
-(setq org-confirm-babel-evaluate nil)
+  ;; Don't ask when evaluating code blocks
+  (setq org-confirm-babel-evaluate nil)
 
-(let* ((dotfiles-path (expand-file-name "~/.dotfiles"))
-       (org-files (directory-files dotfiles-path nil "\\.org$")))
-  (dolist (org-file org-files)
-    (unless (equal org-file "README.org")
+  (let* ((dotfiles-path (expand-file-name "~/.dotfiles"))
+	 (org-files (directory-files dotfiles-path nil "\\.org$")))
+
+    (defun dw/tangle-org-file (org-file)
       (message "\n\033[1;32mUpdating %s\033[0m\n" org-file)
-      (org-babel-tangle-file (expand-file-name org-file dotfiles-path)))))
+      (org-babel-tangle-file (expand-file-name org-file dotfiles-path)))
+
+    ;; Tangle Systems.org first
+    (dw/tangle-org-file "Systems.org")
+
+    (dolist (org-file org-files)
+      (unless (member org-file '("README.org" "Systems.org"))
+      	(dw/tangle-org-file org-file))))
+
+#+end_src
+
+* Nix Package Manager
+
+In an ironic twist of fate, I've found that certain tools I need to use are more easily available in the Nix package repository, so I use it to install them.
+
+#+begin_src conf :tangle .nix-channels
+
+https://nixos.org/channels/nixpkgs-unstable nixpkgs
+
+#+end_src
+
+The channel needs to be updated before any packages can be installed:
+
+#+begin_src sh
+
+nix-channel --update
+
+#+end_src
+
+Installing packages:
+
+#+begin_src sh
+
+nix-env -i nodejs dotnet-sdk
 
 #+end_src
 
