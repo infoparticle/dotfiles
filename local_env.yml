@@ -1,0 +1,7 @@
+- name: Set up local development environment
+  hosts: local
+  roles:
+    # ansible-playbook --tags
+    - {role: git, tags: ['git']}
+    - {role: rg, tags: ['rg']}
+    - {role: tmux, tags: ['tmux']}
